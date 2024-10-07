@@ -25,6 +25,7 @@ llm_manager = LLMManager([groq_model, gpt_model, mistral_model])
 db = Database()
 
 # Global variable to store the user's input and model responses
+stored_usecase = None
 stored_user_input = None
 prompt = None
 stored_model_a_name = None
@@ -36,11 +37,13 @@ stored_user_feedback = None
 
 # Function to set the use case
 def set_usecase(value):
-    global prompt
+    global prompt, stored_usecase
     if value == "samenvatten":
+        stored_usecase = "samenvatten"
         prompt = samenvatten_prompt
         return prompt
     elif value == "vereenvoudigen":
+        stored_usecase = "vereenvoudigen"
         prompt = vereenvoudigen_prompt
         return prompt
     else:
@@ -76,7 +79,7 @@ def handle_feedback(feedback_motivation):
     global stored_user_input, stored_model_a_name, stored_model_b_name, stored_model_a_response, stored_model_b_response, feedback
 
     if stored_user_input and stored_model_a_name and stored_model_b_name and stored_model_a_response and stored_model_b_response and feedback and feedback_motivation:
-        db.log_feedback(stored_user_input, stored_model_a_name, stored_model_b_name, stored_model_a_response, stored_model_b_response, feedback, feedback_motivation)
+        db.log_feedback(stored_usecase, stored_user_input, stored_model_a_name, stored_model_b_name, stored_model_a_response, stored_model_b_response, feedback, feedback_motivation)
         print("Feedback logged successfully.")
 
 # Create interface with two large output textboxes placed side by side
@@ -87,8 +90,8 @@ with (gr.Blocks() as demo):
         with gr.TabItem(" Select Usecase", id=0):
             # Two use cases
             with gr.Row():
-                gr.Textbox(label="Usecase samenvatten", lines=5, interactive=False, value=Usecase_description_samenvatten)
-                gr.Textbox(label="Usecase vereenvoudigen", lines=5, interactive=False, value=Usecase_description_vereenvoudigen)
+                gr.Textbox(label="Usecase Samenvatten", lines=5, interactive=False, value=Usecase_description_samenvatten)
+                gr.Textbox(label="Usecase Vereenvoudigen", lines=5, interactive=False, value=Usecase_description_vereenvoudigen)
 
 
             # Buttons to select use case
@@ -113,6 +116,7 @@ with (gr.Blocks() as demo):
 
 
         with gr.TabItem("Test Usecase", id=1):
+
             with gr.Row():
                 model_a_output = gr.Textbox(label="Model A Output", lines=10, interactive=False)
                 model_b_output = gr.Textbox(label="Model B Output", lines=10, interactive=False)
