@@ -25,6 +25,7 @@ llm_manager = LLMManager([groq_model, gpt_model, mistral_model])
 db = Database()
 
 # Global variable to store the user's input and model responses
+stored_usecase = None
 stored_user_input = None
 prompt = None
 stored_model_a_name = None
@@ -36,15 +37,23 @@ stored_user_feedback = None
 
 # Function to set the use case
 def set_usecase(value):
-    global prompt
+    global prompt, stored_usecase
     if value == "samenvatten":
+        stored_usecase = "samenvatten"
         prompt = samenvatten_prompt
         return prompt
     elif value == "vereenvoudigen":
+        stored_usecase = "vereenvoudigen"
         prompt = vereenvoudigen_prompt
         return prompt
     else:
         raise ValueError("Invalid use case value")
+
+
+# Function to switch tabs after selecting usecase
+def change_tab(id):
+    return gr.Tabs(selected=id)
+
 
 # Function to handle the submit action by passing the user input to generate responses
 def handle_submit(user_message):
@@ -70,64 +79,79 @@ def handle_feedback(feedback_motivation):
     global stored_user_input, stored_model_a_name, stored_model_b_name, stored_model_a_response, stored_model_b_response, feedback
 
     if stored_user_input and stored_model_a_name and stored_model_b_name and stored_model_a_response and stored_model_b_response and feedback and feedback_motivation:
-        db.log_feedback(stored_user_input, stored_model_a_name, stored_model_b_name, stored_model_a_response, stored_model_b_response, feedback, feedback_motivation)
+        db.log_feedback(stored_usecase, stored_user_input, stored_model_a_name, stored_model_b_name, stored_model_a_response, stored_model_b_response, feedback, feedback_motivation)
         print("Feedback logged successfully.")
 
 # Create interface with two large output textboxes placed side by side
 with (gr.Blocks() as demo):
     gr.Markdown("## UWV Lineaus")
 
-    with gr.Tab("Use case"):
-        # Two use cases
-        with gr.Row():
-            gr.Textbox(label="Usecase samenvatten", lines=5, interactive=False, value=Usecase_description_samenvatten)
-            gr.Textbox(label="Usecase vereenvoudigen", lines=5, interactive=False, value=Usecase_description_vereenvoudigen)
+    with gr.Tabs() as tabs:
+        with gr.TabItem(" Select Usecase", id=0):
+            # Two use cases
+            with gr.Row():
+                gr.Textbox(label="Usecase Samenvatten", lines=5, interactive=False, value=Usecase_description_samenvatten)
+                gr.Textbox(label="Usecase Vereenvoudigen", lines=5, interactive=False, value=Usecase_description_vereenvoudigen)
 
 
-        # Buttons to select use case
-        with gr.Row():
-            select_samenvatten_button = gr.Button("Selecteer 'Samenvatten' use case")
-            select_vereenvoudigen_button = gr.Button("Selecteer 'Vereenvoudigen' use case")
+            # Buttons to select use case
+            with gr.Row():
+                select_samenvatten_button = gr.Button("Selecteer 'Samenvatten' use case")
+                select_vereenvoudigen_button = gr.Button("Selecteer 'Vereenvoudigen' use case")
 
-        # Output textbox to display selected prompt
-        selected_prompt = gr.Textbox(label="Selected prompt", lines=2, interactive=False)
+            # Output textbox to display selected prompt
+            selected_prompt = gr.Textbox(label="Selected prompt", lines=2, interactive=False)
 
-        # Button actions to update the selected prompt textbox
-        select_samenvatten_button.click(fn=lambda: set_usecase('samenvatten'), inputs=[], outputs=selected_prompt)
-        select_vereenvoudigen_button.click(fn=lambda: set_usecase('vereenvoudigen'), inputs=[], outputs=selected_prompt)
+            # Button actions to update the selected prompt textbox and use_case_input label
+            select_samenvatten_button.click(fn=lambda: set_usecase('samenvatten'),
+                                            inputs=[],
+                                            outputs=[selected_prompt])
 
-    with gr.Tab("Test"):
-        with gr.Row():
-            model_a_output = gr.Textbox(label="Model A Output", lines=10, interactive=False)
-            model_b_output = gr.Textbox(label="Model B Output", lines=10, interactive=False)
+            select_vereenvoudigen_button.click(fn=lambda: set_usecase('vereenvoudigen'),
+                                               inputs=[],
+                                               outputs=[selected_prompt])
 
-        user_input = gr.Textbox(label="Your Message", lines=2, placeholder="Type message hier...")
+            continue_button = gr.Button("Continue")
+            continue_button.click(change_tab, gr.Number(1, visible=False), tabs)
 
-        # Define the button
-        submit_button = gr.Button("Submit")
-        # Set the function to be called on button click
-        submit_button.click(fn=handle_submit, inputs=[user_input], outputs=[model_a_output, model_b_output])
 
-        # Add the feedback buttons
-        with gr.Row():
-            model_a_better_button = gr.Button("Model A is better")
-            model_b_better_button = gr.Button("Model B is better")
-            tie_button = gr.Button("Tie")
-            both_bad_button = gr.Button("Both are bad")
+        with gr.TabItem("Test Usecase", id=1):
 
-        # Feedback button actions
-        model_a_better_button.click(fn=lambda: set_feedback("Model A is better"), inputs=[], outputs=[])
-        model_b_better_button.click(fn=lambda: set_feedback("Model B is better"), inputs=[], outputs=[])
-        tie_button.click(fn=lambda: set_feedback("Tie"), inputs=[], outputs=[])
-        both_bad_button.click(fn=lambda: set_feedback("Both are bad"), inputs=[], outputs=[])
+            with gr.Row():
+                model_a_output = gr.Textbox(label="Model A Output", lines=10, interactive=False)
+                model_b_output = gr.Textbox(label="Model B Output", lines=10, interactive=False)
 
-        # Feedback text field
-        user_feedback_motivation = gr.Textbox(label="Feedback", lines=2, placeholder="Type feedback hier...")
-        submit_feedback_button = gr.Button("Submit feedback")
-        submit_feedback_button.click(fn=handle_feedback, inputs=[user_feedback_motivation], outputs=[])
+            # Textbox for user input, label will be updated dynamically
+            use_case_input = gr.Textbox(label="Use Case Input", lines=2, placeholder="Type message hier...")
 
-    with gr.Tab("Leader board"):
-        leader_board_button = gr.Button("Leader board")
+            # Define the button
+            submit_button = gr.Button("Submit")
+
+            # Use lambda to dynamically update the label based on the selected prompt
+            submit_button.click(fn=lambda user_message: handle_submit(user_message),
+                                inputs=[use_case_input],
+                                outputs=[model_a_output, model_b_output])
+
+            # Add the feedback buttons
+            with gr.Row():
+                model_a_better_button = gr.Button("Model A is better")
+                model_b_better_button = gr.Button("Model B is better")
+                tie_button = gr.Button("Tie")
+                both_bad_button = gr.Button("Both are bad")
+
+            # Feedback button actions
+            model_a_better_button.click(fn=lambda: set_feedback("Model A is better"), inputs=[], outputs=[])
+            model_b_better_button.click(fn=lambda: set_feedback("Model B is better"), inputs=[], outputs=[])
+            tie_button.click(fn=lambda: set_feedback("Tie"), inputs=[], outputs=[])
+            both_bad_button.click(fn=lambda: set_feedback("Both are bad"), inputs=[], outputs=[])
+
+            # Feedback text field
+            user_feedback_motivation = gr.Textbox(label="Feedback", lines=2, placeholder="Type feedback hier...")
+            submit_feedback_button = gr.Button("Submit feedback")
+            submit_feedback_button.click(fn=handle_feedback, inputs=[user_feedback_motivation], outputs=[])
+
+        with gr.Tab("Leader board"):
+            leader_board_button = gr.Button("Leader board")
 
 # Launch the interface
 demo.launch(share=True)
